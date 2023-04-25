@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, flash, redirect, session, g, 
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
+from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
 from models import db, connect_db, User, Message
 
 CURR_USER_KEY = "curr_user"
@@ -214,6 +214,29 @@ def stop_following(follow_id):
 def profile():
     """Update profile for current user."""
 
+    user = User.query.get_or_404(g.user.id)
+    
+    form = UserEditForm(obj=user)
+    
+    if form.validate_on_submit():
+        
+        try:
+            user.username=form.username.data or g.user.username,
+            user.email=form.email.data or g.user.email,
+            user.image_url=form.image_url.data or g.user.image_url or User.image_url.default.arg,
+            user.header_image_url = form.header_image_url.data or g.user.header_image_url,
+            user.location = form.location.data or g.user.location
+            user.bio = form.bio.data or g.user.bio
+            db.session.commit()
+
+        except IntegrityError:
+            flash("Username already taken", 'danger')
+            return render_template('users/signup.html', form=form)
+
+        do_login(user)
+
+        return redirect("/")
+    return render_template('/users/edit.html', form=form)
     # IMPLEMENT THIS
 
 
