@@ -221,21 +221,27 @@ def profile():
     if form.validate_on_submit():
         
         try:
-            user.username=form.username.data or g.user.username,
-            user.email=form.email.data or g.user.email,
-            user.image_url=form.image_url.data or g.user.image_url or User.image_url.default.arg,
-            user.header_image_url = form.header_image_url.data or g.user.header_image_url,
-            user.location = form.location.data or g.user.location
-            user.bio = form.bio.data or g.user.bio
-            db.session.commit()
+            correct_user = User.authenticate(user.username,form.password.data)
+            if correct_user:
+                user.username=form.username.data or g.user.username,
+                user.email=form.email.data or g.user.email,
+                user.image_url=form.image_url.data or g.user.image_url or User.image_url.default.arg,
+                user.header_image_url = form.header_image_url.data or g.user.header_image_url,
+                user.location = form.location.data or g.user.location
+                user.bio = form.bio.data or g.user.bio
+                db.session.commit()
+            else:
+                flash('Incorrect username/password.', 'danger')
+                return redirect('/')
 
         except IntegrityError:
             flash("Username already taken", 'danger')
             return render_template('users/signup.html', form=form)
-
+ 
         do_login(user)
+        flash('User updated.', 'success')
 
-        return redirect("/")
+        return redirect(url_for('users_show', user_id=user.id))
     return render_template('/users/edit.html', form=form)
     # IMPLEMENT THIS
 
