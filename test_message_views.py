@@ -41,7 +41,7 @@ class MessageViewTestCase(TestCase):
 
         User.query.delete()
         Message.query.delete()
-
+        
         self.client = app.test_client()
 
         self.testuser = User.signup(username="testuser",
@@ -71,6 +71,26 @@ class MessageViewTestCase(TestCase):
 
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+
+    # logout and try the same thing
+    def test_add_message_not_logged_in(self):
+        """Can use add a message when we are not logged in ?"""
+
+        with self.client as c:    
+            
+            resp2 = c.post("/messages/new")
+                # Make sure it gives redirect code 302 since we are not logged in 
+            self.assertEqual(resp2.status_code, 302)
+                
+    def test_add_message_not_logged_in_redirect(self):
+        """Test the redirect that follows attempting to add a message when not logged in """
+        with self.client as c:
+            resp = c.post('/messages/new', follow_redirects=True)
+
+            html = resp.get_data(as_text=True)
+            ## test that we are redirected successfully and that our flash message of access unauthorized is displayed:
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('Access unauthorized.', html)
     
     def test_delete_message(self):
         """Can use delete a message when logged in?"""
@@ -106,7 +126,33 @@ class MessageViewTestCase(TestCase):
             # msg2 should still exist
             self.assertTrue(Message.query.get(msg2.id))
 
+    def test_add_message_as_wrong_user(self):
+        """When you’re logged in, are you prohibiting from adding a message as another user"""
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+            
+            user2 = User(
+                email="test2@test.com",
+                username="testuser2",
+                password="HASHED_PASSWORD"
+            )
+            db.session.add(user2)
+            db.session.commit()
 
+            resp = c.post("/messages/new", data={"text": "Hello", "user_id":user2.id})
+
+            # Make sure it redirects
+            self.assertEqual(resp.status_code, 302)
+
+            #msg id should NOT match the user we are attempting to create a message as
+            msg = Message.query.one()
+            self.assertNotEqual(msg.user_id, user2.id)
+        
+    
+    
+    
+    
     def test_view_follower(self):
         """When you’re logged in, can you see the follower / following pages for any user?"""
 
