@@ -91,6 +91,22 @@ class MessageViewTestCase(TestCase):
             # msg with this id does not exist
             self.assertFalse(Message.query.get(msg.id))
 
+            # logout and try the same thing
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = None
+            
+            msg2 = Message(text="This is a test message", user_id=self.testuser.id)
+            db.session.add(msg2)
+            db.session.commit()
+
+            resp2 = c.post(f"/messages/{msg2.id}/delete")
+
+            # Make sure it gives redirect code 302 since we are not logged in 
+            self.assertEqual(resp2.status_code, 302)
+            # msg2 should still exist
+            self.assertTrue(Message.query.get(msg2.id))
+
+
     def test_view_follower(self):
         """When you’re logged in, can you see the follower / following pages for any user?"""
 
