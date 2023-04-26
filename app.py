@@ -214,15 +214,19 @@ def stop_following(follow_id):
 def profile():
     """Update profile for current user."""
 
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
     user = User.query.get_or_404(g.user.id)
     
     form = UserEditForm(obj=user)
     
     if form.validate_on_submit():
         
-        try:
-            correct_user = User.authenticate(user.username,form.password.data)
-            if correct_user:
+        correct_user = User.authenticate(user.username,form.password.data)
+        if correct_user:
+            try:
                 user.username=form.username.data or g.user.username,
                 user.email=form.email.data or g.user.email,
                 user.image_url=form.image_url.data or g.user.image_url or User.image_url.default.arg,
@@ -230,18 +234,22 @@ def profile():
                 user.location = form.location.data or g.user.location
                 user.bio = form.bio.data or g.user.bio
                 db.session.commit()
-            else:
-                flash('Incorrect username/password.', 'danger')
-                return redirect('/')
-
-        except IntegrityError:
-            flash("Username already taken", 'danger')
-            return render_template('users/signup.html', form=form)
+            except IntegrityError:
+                flash("Username already taken", 'danger')
+                db.session.rollback()
+                return redirect('profile')
  
-        do_login(user)
-        flash('User updated.', 'success')
+            do_login(user)
+            flash('User updated.', 'success')
 
-        return redirect(url_for('users_show', user_id=user.id))
+            return redirect(url_for('users_show', user_id=user.id))
+
+                
+        else:
+            flash('Incorrect username/password.', 'danger')
+            return redirect('/')
+
+        
     return render_template('/users/edit.html', form=form)
     # IMPLEMENT THIS
 
