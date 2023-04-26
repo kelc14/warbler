@@ -297,7 +297,20 @@ def change_like(msg_id):
         like = Likes(user_id=g.user.id, message_id=msg_id)
         db.session.add(like)
         db.session.commit()
-        return redirect('/')    
+        return redirect('/')   
+
+@app.route('/users/likes')
+def likes():
+     """Display all liked messages for user"""
+     if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+     
+     messages = g.user.likes
+     likes = [like.id for like in g.user.likes]
+
+     return render_template('/users/liked.html', messages=messages, likes=likes, user=g.user)
+
 
 
 ##############################################################################
