@@ -8,7 +8,7 @@
 import os
 from unittest import TestCase
 
-from models import db, connect_db, Message, User
+from models import db, connect_db, Message, User, Follows
 
 # BEFORE we import our app, let's set an environmental variable
 # to use a different database for tests (we need to do this
@@ -71,3 +71,148 @@ class MessageViewTestCase(TestCase):
 
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+    
+    def test_delete_message(self):
+        """Can use delete a message when logged in?"""
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+            # now logged in, create message before request
+
+            msg = Message(text="This is a test message", user_id=self.testuser.id)
+            db.session.add(msg)
+            db.session.commit()
+
+            resp = c.post(f"/messages/{msg.id}/delete")
+
+            # Make sure it redirects
+            self.assertEqual(resp.status_code, 302)
+            # msg with this id does not exist
+            self.assertFalse(Message.query.get(msg.id))
+
+    def test_view_follower(self):
+        """When you’re logged in, can you see the follower / following pages for any user?"""
+
+        with self.client as c:
+            # first make sure user is logged in (saved in session)
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            user2 = User(
+                email="test2@test.com",
+                username="testuser2",
+                password="HASHED_PASSWORD"
+            )
+
+            user3 = User(
+                email="test3@test.com",
+                username="testuser3",
+                password="HASHED_PASSWORD"
+            )
+            db.session.add_all([user2, user3])
+            db.session.commit()
+
+            #create the follow (testuser followed by user2)
+
+            f = Follows(user_being_followed_id=self.testuser.id,
+                        user_following_id=user2.id)
+            db.session.add(f)
+            db.session.commit()
+
+            #user 2 should be on follows pg, but not user 3
+            # now load the page
+            resp = c.get(f"/users/{self.testuser.id}/followers")
+            html = resp.get_data(as_text=True)
+
+            # Make sure it loads OK
+            self.assertEqual(resp.status_code, 200)
+
+            self.assertIn('testuser2', html)
+            self.assertNotIn('testuser3', html)
+
+            #can we see the follower page for user 2 ? Should not be any users in html. 
+            resp2 = c.get(f"/users/{user2.id}/followers")
+            html2 = resp2.get_data(as_text=True)
+
+            # Make sure it loads OK
+            self.assertEqual(resp2.status_code, 200)
+
+            self.assertIn('testuser2', html2)
+            self.assertNotIn('testuser3', html2)
+
+
+            #now log out and instead of 200 status code we should get a redirect to homepage
+
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = None
+            
+            resp3 = c.get(f"/users/{user2.id}/followers")
+
+            # Make sure it gives redirect code 302
+            self.assertEqual(resp3.status_code, 302)
+            
+    def test_view_following(self):
+        """When you’re logged in, can you see the following pages for any user?"""
+
+        with self.client as c:
+            # first make sure user is logged in (saved in session)
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            user2 = User(
+                email="test2@test.com",
+                username="testuser2",
+                password="HASHED_PASSWORD"
+            )
+
+            user3 = User(
+                email="test3@test.com",
+                username="testuser3",
+                password="HASHED_PASSWORD"
+            )
+            db.session.add_all([user2, user3])
+            db.session.commit()
+
+            #create the follow (testuser following  user2)
+
+            f = Follows(user_being_followed_id=user2.id,
+                        user_following_id=self.testuser.id)
+            db.session.add(f)
+            db.session.commit()
+
+            #user 2 should be on following pg, but not user 3
+            # now load the page
+            resp = c.get(f"/users/{self.testuser.id}/following")
+            html = resp.get_data(as_text=True)
+
+            # Make sure it loads OK
+            self.assertEqual(resp.status_code, 200)
+
+            self.assertIn('testuser2', html)
+            self.assertNotIn('testuser3', html)
+
+
+            #can we see the following page for user 2 ? Should not be any users in html. 
+            resp2 = c.get(f"/users/{user2.id}/following")
+            html2 = resp2.get_data(as_text=True)
+
+            # Make sure it loads OK
+            self.assertEqual(resp2.status_code, 200)
+
+            self.assertIn('testuser2', html2)
+            self.assertNotIn('testuser3', html2)
+
+
+            #now log out and instead of 200 status code we should get a redirect to homepage
+
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = None
+            
+            resp3 = c.get(f"/users/{user2.id}/following")
+
+            # Make sure it gives redirect code 302
+            self.assertEqual(resp3.status_code, 302)
+
+
+            
